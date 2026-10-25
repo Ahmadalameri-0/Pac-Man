@@ -1,0 +1,135 @@
+import pygame
+from pathlib import Path
+from typing import Any
+from .high_score_screen import HighScoreScreen
+from .instructions_screen import InstructionsScreen
+from .main_screen import MainScreen
+from .maze_screen import GameScreen
+import signal
+from .setting_screen import SettingScreen
+
+
+class ScreenManager:
+    """Central manager for all games screens (State Machine)
+    Handles transitions, screen lifecycle, and memory"""
+
+    def __init__(self, surface: pygame.Surface, config: dict[str, Any]):
+        """Build all persistent menu screens and set the initial state."""
+        self.surface = surface
+        self.config = config
+        self.current_music_path: Path | str | None = None
+
+        self.menus = {
+            "main_menu": MainScreen(self.surface),
+            "settings": SettingScreen(self.surface, self.config),
+            "instructions": InstructionsScreen(self.surface, self.config),
+            "high_scores": HighScoreScreen(
+                self.surface, self.config.get(
+                    "highscore_filename", "high_score.json"
+                )
+            ),
+        }
+
+        self.current_screen_name = "main_menu"
+        self.active_screen: Any = self.menus[self.current_screen_name]
+        self.clock = pygame.time.Clock()
+        self.running = True
+
+    def play_music(self, music_path: Path | str) -> None:
+        """Load and loop the given music track if it isn't already playing."""
+        if self.current_music_path == music_path:
+            return
+        try:
+            pygame.mixer.music.load(music_path)
+            pygame.mixer.music.play(-1)
+            self.current_music_path = music_path
+        except pygame.error as e:
+            print(f"Error loading music {music_path}: {e}")
+
+    def _disable_ctrl_z(self, signum: int, frame: Any) -> None:
+        """Handler for SIGTSTP (Ctrl+Z) to prevent game suspension."""
+        print(
+            "\n[System] Nice try! Ctrl+Z is disabled."
+            "Please use the exit button in the game."
+        )
+
+    def run(self) -> None:
+        """Main game loop
+        Runs continuously until the player closes the game"""
+        try:
+            signal.signal(signal.SIGTSTP, self._disable_ctrl_z)
+        except AttributeError:
+            pass
+
+        mus = Path("assets/sounds/background_music.ogg")
+        self.play_music(mus)
+
+        while self.running:
+            try:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                        continue
+                    action = self.active_screen.handle_event(event)
+                    if action is not None:
+                        self._handle_action(action)
+
+                if isinstance(self.active_screen, GameScreen):
+                    action = self.active_screen.update()
+                    if action is not None:
+                        self._handle_action(action)
+
+                self.active_screen.draw()
+                pygame.display.flip()
+                if isinstance(self.active_screen, InstructionsScreen):
+                    self.clock.tick(1)
+                else:
+                    self.clock.tick(60)
+
+            except KeyboardInterrupt:
+                print(
+                    "\n[System] Nice try! Ctrl+C is disabled."
+                    "Please use the exit button in the game."
+                )
+            except EOFError:
+                print(
+                    "\n[System] Nice try! Ctrl+D is disabled."
+                    "Please use the exit button in the game."
+                )
+
+    def _handle_action(self, action: str | None) -> None:
+        """Switch the active screen and music based on a returned action."""
+        self.play_music("assets/sounds/background_music.ogg")
+        if not action:
+            return
+        if action == "quit":
+            self.running = False
+
+        elif action == "play":
+            self.active_screen = GameScreen(self.surface, self.config)
+            self.current_screen_name = "play"
+            print(
+                "[System] PlayScreen created. "
+                "Game is starting with current config."
+            )
+            self.current_music_path = None
+
+        elif action == "back_to_menu":
+            if self.current_screen_name == "play":
+                print(
+                    "[System] Exiting game. "
+                    "PlayScreen & GameEntities destroyed (RAM Freed)."
+                )
+            self.active_screen = self.menus["main_menu"]
+            self.current_screen_name = "main_menu"
+        elif action == "settings":
+            self.active_screen = self.menus["settings"]
+            self.current_screen_name = "settings"
+
+        elif action == "instructions":
+            self.active_screen = self.menus["instructions"]
+            self.current_screen_name = "instructions"
+
+        elif action == "highscores":
+            self.active_screen = self.menus["high_scores"]
+            self.current_screen_name = "high_scores"

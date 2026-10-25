@@ -1,0 +1,29 @@
+[project]
+name = "jordanian-Pac-Man"
+version = "0.1.0"
+description = "Jordanian Version Of Pacman Game"
+authors = [
+    {name = "abani-am, ialalawn"}
+]
+
+requires-python = ">=3.10"
+
+dependencies = [
+    "pydantic (>=2.13.4,<3.0.0)",
+    "mazegenerator @ file:./libs/mazegenerator-2.1.0-py3-none-any.whl",
+    "pygame-ce (>=2.5.8,<3.0.0)",
+]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.1.1,<10.0.0)",
+    "flake8 (>=7.0.0,<8.0.0)",
+    "mypy (>=1.10.0,<2.0.0)"
+]
